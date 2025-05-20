@@ -4,29 +4,17 @@ from analisa_roberta import analyze_sentiment
 import plotly.express as px
 import pandas as pd
 import tempfile
-from streamlit_navigation_bar import st_navbar
 
 # Atur halaman
 st.set_page_config(
     page_title="Sentimen Analisis IG",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    layout="wide",  # Tetap wide untuk visualisasi enak
+    initial_sidebar_state="expanded"
 )
 
-# Navbar langsung di sini
-pages = ["Upload & Scrape", "Analisis Sentimen", "Visualisasi"]
-styles = {
-    "nav": {"background-color": "#7bd192"},
-    "span": {
-        "border-radius": "0.5rem",
-        "color": "#31333f",
-        "margin": "0 0.125rem",
-        "padding": "0.4375rem 0.625rem",
-    },
-    "active": {"background-color": "rgba(255, 255, 255, 0.25)"},
-    "hover": {"background-color": "rgba(255, 255, 255, 0.35)"},
-}
-current_page = st_navbar(pages, styles=styles)
+# Sidebar navigasi
+st.sidebar.title("Navigasi")
+current_page = st.sidebar.radio("Pilih halaman:", ["Upload & Scrape", "Analisis Sentimen", "Visualisasi"])
 
 # Judul utama
 st.title("📱 Sentimen Analisis Sosial Media Kapten Naratel")
