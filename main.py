@@ -4,6 +4,8 @@ from analisa_roberta import analyze_sentiment
 import plotly.express as px
 import pandas as pd
 import tempfile
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 
 # Atur halaman
 st.set_page_config(
@@ -93,46 +95,142 @@ elif current_page == "Visualisasi":
     st.header("📊 Visualisasi Sentimen")
 
     if "hasil_analisa" in st.session_state and "Kolom ditampilkan" in st.session_state:
-        data_diolah = st.session_state["hasil_analisa"]
-        kolom_ditampil = st.session_state["Kolom ditampilkan"]
-        
-        st.dataframe(data_diolah[kolom_ditampil])
+        # Gunakan .copy() untuk menghindari modifikasi data asli di session_state secara tidak sengaja
+        data_diolah_lengkap = st.session_state["hasil_analisa"].copy()
+        kolom_ditampil_awal = st.session_state["Kolom ditampilkan"]
 
-        df = pd.DataFrame(data_diolah[kolom_ditampil])
+        # Pastikan kolom yang diperlukan ada di data_diolah_lengkap
+        required_cols = ["Post URL", "Komentar", "Label Sentimen"]
+        if not all(col in data_diolah_lengkap.columns for col in required_cols):
+            st.error(f"Data hasil analisis tidak lengkap. Kolom yang dibutuhkan: {', '.join(required_cols)} tidak ditemukan.")
+            st.stop()
 
-        st.subheader("📌 Pilih Post untuk Melihat Hasil Sentimen")
-        daftar_post = df["Post URL"].unique().tolist()
-        selected_post = st.selectbox("Pilih Post URL", options=["Semua Post"] + daftar_post)
+        # Tampilkan data awal yang akan diolah (DataFrame dari session state)
+        # st.subheader("📜 Data Awal Hasil Analisis")
+        # st.dataframe(data_diolah_lengkap[kolom_ditampil_awal]) # Mungkin tidak perlu ditampilkan jika sudah banyak visualisasi
 
-        if selected_post == "Semua Post":
-            df_filtered = df
+        df_semua_data = pd.DataFrame(data_diolah_lengkap) # DataFrame untuk semua data
+
+        # --- 1. GROUPED BAR CHART (PERBANDINGAN SEMUA POST) ---
+        st.divider()
+        st.subheader("📊 Perbandingan Sentimen Antar Semua Link Unggahan")
+        if not df_semua_data.empty:
+            sentiment_counts_all_posts = df_semua_data.groupby(['Post URL', 'Label Sentimen']).size().reset_index(name='Jumlah')
+            if not sentiment_counts_all_posts.empty:
+                fig_grouped_bar = px.bar(
+                    sentiment_counts_all_posts,
+                    x='Post URL',
+                    y='Jumlah',
+                    color='Label Sentimen',
+                    barmode='group',
+                    title="Distribusi Sentimen per Link Unggahan",
+                    labels={'Post URL': 'Link Unggahan', 'Label Sentimen': 'Sentimen', 'Jumlah': 'Jumlah Komentar'},
+                    color_discrete_map={
+                        'Positif': 'mediumseagreen',
+                        'Negatif': 'indianred',
+                        'Netral': 'lightskyblue'
+                    },
+                    height=max(500, len(df_semua_data['Post URL'].unique()) * 50) # Tinggi dinamis
+                )
+                fig_grouped_bar.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_grouped_bar, use_container_width=True)
+            else:
+                st.info("Tidak ada data yang cukup untuk membuat grouped bar chart.")
         else:
-            df_filtered = df[df["Post URL"] == selected_post]
+            st.info("Tidak ada data hasil analisis untuk ditampilkan.")
 
-        st.subheader("➡️ Statistik Sentimen")
-        st.write(f"Post URL : {selected_post}")
-        if "Label Sentimen" in df_filtered.columns:
-            jumlah_sentimen = df_filtered["Label Sentimen"].value_counts().reset_index()
-            jumlah_sentimen.columns = ["Sentimen", "Jumlah"]
 
-            st.write(f"Jumlah Komentar : {df_filtered.shape[0]} komentar")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("🙂 Positif", jumlah_sentimen[jumlah_sentimen["Sentimen"] == "Positif"]["Jumlah"].values[0] if "Positif" in jumlah_sentimen["Sentimen"].values else 0)
-            c2.metric("😐 Netral", jumlah_sentimen[jumlah_sentimen["Sentimen"] == "Netral"]["Jumlah"].values[0] if "Netral" in jumlah_sentimen["Sentimen"].values else 0)
-            c3.metric("🙁 Negatif", jumlah_sentimen[jumlah_sentimen["Sentimen"] == "Negatif"]["Jumlah"].values[0] if "Negatif" in jumlah_sentimen["Sentimen"].values else 0)
+        # --- 2. FITUR YANG SUDAH ADA (PIE CHART, STATISTIK, FILTER KOMENTAR PER POST/SEMUA) ---
+        st.divider()
+        st.subheader("📌 Analisis Detail per Post atau Keseluruhan")
 
-            st.divider()
-            st.subheader("➡️ Distribusi Sentimen")
-            fig = px.pie(jumlah_sentimen, names="Sentimen", values="Jumlah", color_discrete_sequence=px.colors.qualitative.Set3)
-            fig.update_layout(height=600, width=600)
-            st.plotly_chart(fig, use_container_width=True)
+        # Menggunakan df_semua_data untuk mendapatkan daftar post unik
+        daftar_post = ["Semua Post"] + df_semua_data["Post URL"].unique().tolist()
+        selected_post = st.selectbox("Pilih Post URL untuk Analisis Detail:", options=daftar_post, key="detail_post_select")
 
-            st.subheader("🔍 Tampilkan Komentar Berdasarkan Label Sentimen")
-            opsi_label = jumlah_sentimen["Sentimen"].tolist()
-            selected_sentimen = st.selectbox("Pilih Label Sentimen", options=opsi_label)
-            komentar_terfilter = df_filtered[df_filtered["Label Sentimen"] == selected_sentimen]
+        # Filter data berdasarkan pilihan dropdown
+        if selected_post == "Semua Post":
+            df_filtered = df_semua_data.copy() # Gunakan copy
+        else:
+            df_filtered = df_semua_data[df_semua_data["Post URL"] == selected_post].copy() # Gunakan copy
 
-            st.write(f"Menampilkan {len(komentar_terfilter)} komentar dengan label: **{selected_sentimen}**")
-            st.dataframe(komentar_terfilter[["Post URL", "Komentar", "Label Sentimen"]])
+        if not df_filtered.empty:
+            st.subheader(f"➡️ Statistik Sentimen untuk: {selected_post}")
+            if "Label Sentimen" in df_filtered.columns:
+                jumlah_sentimen_filtered = df_filtered["Label Sentimen"].value_counts().reset_index()
+                jumlah_sentimen_filtered.columns = ["Sentimen", "Jumlah"]
+
+                st.write(f"Jumlah Komentar: {df_filtered.shape[0]}")
+                c1, c2, c3 = st.columns(3)
+                sentimen_map = dict(zip(jumlah_sentimen_filtered['Sentimen'], jumlah_sentimen_filtered['Jumlah']))
+                c1.metric("🙂 Positif", sentimen_map.get("Positif", 0))
+                c2.metric("😐 Netral", sentimen_map.get("Netral", 0))
+                c3.metric("🙁 Negatif", sentimen_map.get("Negatif", 0))
+
+                st.markdown("---") # Pemisah sebelum pie chart
+                st.subheader(f"🥧 Distribusi Sentimen untuk: {selected_post}")
+                if not jumlah_sentimen_filtered.empty:
+                    fig_pie = px.pie(
+                        jumlah_sentimen_filtered,
+                        names="Sentimen",
+                        values="Jumlah",
+                        color_discrete_sequence=px.colors.qualitative.Set2 # Ganti palet warna jika ingin
+                    )
+                    fig_pie.update_layout(height=500) # Ukuran bisa disesuaikan
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                else:
+                    st.info("Tidak ada data sentimen untuk ditampilkan pada pie chart untuk pilihan ini.")
+
+                # --- 3. WORD CLOUD (MENGGUNAKAN DATA YANG SAMA DENGAN PIE CHART) ---
+                st.markdown("---") # Pemisah sebelum word cloud
+                st.subheader(f"☁️ Word Cloud untuk: {selected_post}")
+                if "Komentar" in df_filtered.columns and not df_filtered.empty:
+                    text_corpus = " ".join(comment for comment in df_filtered["Komentar"].astype(str) if pd.notnull(comment))
+                    if text_corpus.strip():
+                        # Anda bisa menambahkan stopwords di sini jika perlu
+                        # stopwords_custom = set(["yang", "dan", "di", "ini", "itu", "saya", "kak", "min"])
+                        try:
+                            wordcloud = WordCloud(
+                                width=800,
+                                height=400,
+                                background_color='white',
+                                stopwords=None, # Ganti dengan stopwords_custom jika ada
+                                collocations=False, # Menghindari bigram yang tidak diinginkan
+                                min_font_size=10
+                            ).generate(text_corpus)
+
+                            fig_wc, ax = plt.subplots(figsize=(10, 5))
+                            ax.imshow(wordcloud, interpolation='bilinear')
+                            ax.axis("off")
+                            st.pyplot(fig_wc)
+                        except Exception as e:
+                            st.error(f"Gagal membuat wordcloud: {e}")
+                    else:
+                        st.info("Tidak ada teks komentar yang cukup untuk membuat wordcloud untuk pilihan ini.")
+                else:
+                    st.info("Tidak ada kolom 'Komentar' atau data komentar untuk membuat wordcloud untuk pilihan ini.")
+
+
+                # --- 4. FITUR YANG SUDAH ADA (TAMPILKAN KOMENTAR BERDASARKAN LABEL) ---
+                st.markdown("---") # Pemisah sebelum filter komentar
+                st.subheader(f"🔍 Tampilkan Komentar Berdasarkan Label untuk: {selected_post}")
+                if not jumlah_sentimen_filtered.empty:
+                    opsi_label = jumlah_sentimen_filtered["Sentimen"].tolist()
+                    if opsi_label: # Pastikan ada opsi label
+                        selected_sentimen_label = st.selectbox("Pilih Label Sentimen:", options=opsi_label, key="label_filter_select")
+                        komentar_terfilter = df_filtered[df_filtered["Label Sentimen"] == selected_sentimen_label]
+
+                        st.write(f"Menampilkan {len(komentar_terfilter)} komentar dengan label **{selected_sentimen_label}** dari '{selected_post}':")
+                        # Tampilkan kolom yang relevan, sesuaikan dengan kebutuhan
+                        st.dataframe(komentar_terfilter[["Post URL", "Komentar", "Label Sentimen"]])
+                    else:
+                        st.info("Tidak ada label sentimen untuk dipilih dalam filter ini.")
+                else:
+                    st.info("Tidak ada data sentimen untuk menampilkan komentar berdasarkan label untuk pilihan ini.")
+            else:
+                st.info("Kolom 'Label Sentimen' tidak ditemukan dalam data yang difilter.")
+        else:
+            st.info(f"Tidak ada data komentar untuk '{selected_post}'.")
+
     else:
-        st.warning("⚠️ Belum ada data untuk divisualisasi. Silakan lakukan analisis terlebih dahulu.")
+        st.warning("⚠️ Belum ada data untuk divisualisasi. Silakan lakukan analisis sentimen terlebih dahulu di halaman 'Analisis Sentimen'.")

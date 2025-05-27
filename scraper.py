@@ -5,24 +5,15 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.keys import Keys
+import os
 import time
 import pandas as pd
 import logging
-import os
-from dotenv import load_dotenv
 
 # untuk logging tools
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# untuk membuka file env
-env_path = os.path.join(os.getcwd(), r'C:') #masukan file path dengan file .env
-load_dotenv(dotenv_path=env_path)
-
-# ambil password
-USERNAME = os.getenv('INSTAGRAM_USERNAME')
-PASSWORD = os.getenv('INSTAGRAM_PASSWORD')
 Max_Comment = 200
 
 def create_driver():
@@ -33,12 +24,14 @@ def create_driver():
     chrome_options.add_argument("--no-sandbox")    
     chrome_options.add_argument("--disable-dev-shm-usage") 
     chrome_options.add_argument("--disable-gpu") 
-
+    #chrome_options.binary_location = "/usr/bin/chromium" # Path umum untuk google-chrome
+    logger.info("Menginstal/mencari ChromeDriver via webdriver-manager...")
+    # Biarkan webdriver-manager yang menangani Service
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
-def login_instagram(driver, username=USERNAME, password=PASSWORD):
+def login_instagram(driver, username, password):
     """Fungsi untuk login ke Instagram."""
     try:
         
@@ -108,7 +101,7 @@ def scrape_comments(driver, url, max_comments=500):
     try:
         # Buka halaman postingan
         driver.get(url)
-        time.sleep(3)  # Sedikit lebih lama untuk memastikan halaman dimuat sepenuhnya
+        time.sleep(5)  # Sedikit lebih lama untuk memastikan halaman dimuat sepenuhnya
         
         # Comment selector utama yang akan digunakan
         main_selector = 'div.x9f619.xjbqb8w.x78zum5.x168nmei.x13lgxp2.x5pf9jr.xo71vjh.x1uhb9sk.x1plvlek.xryxfnj.x1c4vz4f.x2lah0s.xdt5ytf.xqjyukv.x1cy8zhl.x1oa3qoh.x1nhvcw1 > span'
@@ -195,7 +188,7 @@ def alat_scraper(link_postingan, driver):
 
     with open(link_postingan, 'r') as file:
         links = [line.strip() for line in file if line.strip()]
-        total = len(link_postingan)
+        total = len(links)
     logger.info('Berhasil membaca file')
 
     for i, url in enumerate(links):
