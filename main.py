@@ -105,9 +105,6 @@ elif current_page == "Visualisasi":
             st.error(f"Data hasil analisis tidak lengkap. Kolom yang dibutuhkan: {', '.join(required_cols)} tidak ditemukan.")
             st.stop()
 
-        # Tampilkan data awal yang akan diolah (DataFrame dari session state)
-        # st.subheader("📜 Data Awal Hasil Analisis")
-        # st.dataframe(data_diolah_lengkap[kolom_ditampil_awal]) # Mungkin tidak perlu ditampilkan jika sudah banyak visualisasi
 
         df_semua_data = pd.DataFrame(data_diolah_lengkap) # DataFrame untuk semua data
 
@@ -187,7 +184,7 @@ elif current_page == "Visualisasi":
                 if "Komentar" in df_filtered.columns and not df_filtered.empty:
                     text_corpus = " ".join(comment for comment in df_filtered["Komentar"].astype(str) if pd.notnull(comment))
                     if text_corpus.strip():
-                        # Anda bisa menambahkan stopwords di sini jika perlu
+                        #  bisa menambahkan stopwords di sini jika perlu
                         # stopwords_custom = set(["yang", "dan", "di", "ini", "itu", "saya", "kak", "min"])
                         try:
                             wordcloud = WordCloud(
